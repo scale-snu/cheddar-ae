@@ -5,7 +5,9 @@ from pathlib import Path
 
 # --- Configuration ---
 # Configure logging to display timestamps, log level, and messages.
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # Define workloads and their corresponding executable names.
 WORKLOADS = {
@@ -38,17 +40,20 @@ def update_symlink(target_path: Path, link_path: Path) -> None:
         logging.error(f"Failed to update symlink: {e}")
         raise
 
+
 def run_workload(name: str, command_parts: list[str]) -> str | None:
     executable = command_parts[0]
     args = command_parts[1:]
-    
+
     command = [BUILD_DIR / executable] + args
-    
+
     logging.info(f"Running {name} workload with command: {' '.join(map(str, command))}")
     try:
         result = subprocess.run(command, capture_output=True, text=True, cwd=BUILD_DIR)
         if result.returncode != 0:
-            logging.warning(f"Workload '{name}' exited with a non-zero status ({result.returncode}). Parsing output anyway.")
+            logging.warning(
+                f"Workload '{name}' exited with a non-zero status ({result.returncode}). Parsing output anyway."
+            )
             logging.warning(f"STDERR for '{name}':\n{result.stderr}")
         return result.stdout
     except FileNotFoundError:
@@ -57,6 +62,7 @@ def run_workload(name: str, command_parts: list[str]) -> str | None:
     except Exception as e:
         logging.error(f"An unexpected error occurred while running {name}: {e}")
         return None
+
 
 def parse_output(output: str) -> list[float]:
     """
@@ -74,6 +80,7 @@ def parse_output(output: str) -> list[float]:
                 logging.warning(f"Could not parse a valid float from line: '{line}'")
     return values
 
+
 def print_summary_table(df: pd.DataFrame) -> None:
     """
     Formats and prints the data in a style similar to the provided image.
@@ -84,29 +91,29 @@ def print_summary_table(df: pd.DataFrame) -> None:
 
     # --- Data Transformation for Pivoting ---
     # 1. Melt DataFrame from wide to long format
-    long_df = pd.melt(df, id_vars=['Workload'], var_name='log_delta_str', value_name='Value')
+    long_df = pd.melt(
+        df, id_vars=["Workload"], var_name="log_delta_str", value_name="Value"
+    )
 
     # 2. Clean up and convert log_delta column to numeric
-    long_df['log_delta'] = long_df['log_delta_str'].str.replace('logΔ=', '').astype(int)
+    long_df["log_delta"] = long_df["log_delta_str"].str.replace("logΔ=", "").astype(int)
 
     # 3. Define metrics and clean up workload names for the final table header
-    metric_map = {
-        'HELR': ('HELR', 'Acc. (%)'),
-        'ResNet20': ('ResNet', 'Acc. (%)'),
-        'Sorting': ('Sort', 'Prec. (bits)')
-    }
-    long_df[['Workload_Header', 'Metric_Header']] = long_df['Workload'].map(metric_map.get).apply(pd.Series)
-    
-    accuracy_workloads = ['HELR', 'ResNet20']
-    long_df.loc[long_df['Workload'].isin(accuracy_workloads), 'Value'] *= 100
+    metric_map = {"ResNet20": ("ResNet", "Acc. (%)")}
+    long_df[["Workload_Header", "Metric_Header"]] = (
+        long_df["Workload"].map(metric_map.get).apply(pd.Series)
+    )
+
+    accuracy_workloads = ["ResNet20"]
+    long_df.loc[long_df["Workload"].isin(accuracy_workloads), "Value"] *= 100
 
     # --- Pivoting and Formatting ---
     # 4. Pivot the table to the desired shape with a multi-level header
     try:
         summary_df = long_df.pivot_table(
-            index='log_delta', 
-            columns=['Workload_Header', 'Metric_Header'], 
-            values='Value'
+            index="log_delta",
+            columns=["Workload_Header", "Metric_Header"],
+            values="Value",
         )
     except Exception as e:
         logging.error(f"Failed to pivot data for summary table. Error: {e}")
@@ -115,26 +122,26 @@ def print_summary_table(df: pd.DataFrame) -> None:
     # 5. Sort by delta value in descending order, similar to the image
     summary_df = summary_df.sort_index(ascending=False)
 
-    # 6. Reorder columns to match the image's layout (HELR, ResNet, Sort)
-    summary_df = summary_df[['HELR', 'ResNet', 'Sort']]
-    
+    # 6. Reorder columns to match the image's layout (ResNet)
+    summary_df = summary_df[["ResNet"]]
+
     # 7. Format the index labels to match the image
     delta_format_map = {
         48: "Δ = 2^48 (DR)",
         40: "Δ = 2^40 (RR)",
         35: "Δ = 2^35 (RR)",
-        30: "Δ = 2^30 (SR)"
+        30: "Δ = 2^30 (SR)",
     }
     summary_df.index = summary_df.index.map(delta_format_map)
-    summary_df.index.name = None # Remove index name for cleaner look
+    summary_df.index.name = None  # Remove index name for cleaner look
 
     # --- Final Print ---
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("Functionality Summary")
-    print("="*80)
+    print("=" * 80)
     # Use to_string() for a well-formatted console output
     print(summary_df.to_string(float_format="%.2f"))
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
 
 def main() -> None:
@@ -160,9 +167,13 @@ def main() -> None:
                 if len(parsed_values) == len(LOG_DELTAS):
                     results_data[name] = parsed_values
                 else:
-                    logging.warning(f"Expected {len(LOG_DELTAS)} values for '{name}', but found {len(parsed_values)}. Skipping.")
+                    logging.warning(
+                        f"Expected {len(LOG_DELTAS)} values for '{name}', but found {len(parsed_values)}. Skipping."
+                    )
             else:
-                logging.warning(f"No accuracy/precision values found in the output for workload '{name}'.")
+                logging.warning(
+                    f"No accuracy/precision values found in the output for workload '{name}'."
+                )
 
     if not results_data:
         logging.error("No data was collected from any workloads. Exiting.")
@@ -171,13 +182,11 @@ def main() -> None:
     # 3. Convert the results into a standard Pandas DataFrame.
     try:
         df = pd.DataFrame.from_dict(
-            results_data,
-            orient='index',
-            columns=[f"logΔ={d}" for d in LOG_DELTAS]
+            results_data, orient="index", columns=[f"logΔ={d}" for d in LOG_DELTAS]
         )
         df.insert(0, "Workload", df.index)
         df.reset_index(drop=True, inplace=True)
-        
+
         # 4. Save the standard results to a CSV file first.
         df.to_csv(OUTPUT_CSV_FILE, index=False)
         logging.info(f"Standard results successfully saved to {OUTPUT_CSV_FILE}")
